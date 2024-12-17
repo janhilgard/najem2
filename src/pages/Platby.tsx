@@ -1,34 +1,45 @@
 import React, { useState } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import Layout from '../components/Layout';
 import PlatbyTable from '../components/PlatbyTable';
 import PlatbaForm from '../components/PlatbaForm';
 import Pagination from '../components/Pagination';
 import DeleteConfirmDialog from '../components/DeleteConfirmDialog';
 import Notification from '../components/Notification';
-import { useNotification } from '../hooks/useNotification';
-import { initialPlatby } from '../data/initialData';
+import SearchInput from '../components/common/SearchInput';
+import PaymentTypeToggle from '../components/platby/PaymentTypeToggle';
+import { useNotificationStore } from '../stores/notificationStore';
+import { usePlatbyStore } from '../stores/platbyStore';
+import { usePlatbyFilter } from '../hooks/usePlatbyFilter';
 import type { Platba } from '../types';
 
 export default function Platby() {
-  const [platby, setPlatby] = useState<Platba[]>(initialPlatby);
+  const { platby, addPlatba, updatePlatba, deletePlatba } = usePlatbyStore();
+  const { message: notification, showNotification, hideNotification } = useNotificationStore();
+  
   const [showForm, setShowForm] = useState(false);
   const [editingPlatba, setEditingPlatba] = useState<Platba | undefined>();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-  const { notification, showNotification, hideNotification } = useNotification();
   const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; platbaId: string | null }>({
     isOpen: false,
     platbaId: null
   });
 
+  const {
+    searchQuery,
+    setSearchQuery,
+    selectedType,
+    setSelectedType,
+    currentPage,
+    setCurrentPage,
+    itemsPerPage,
+    setItemsPerPage,
+    filteredPlatby,
+    totalPages,
+    stats
+  } = usePlatbyFilter(platby);
+
   const handleAdd = (data: Omit<Platba, 'id'>) => {
-    const newPlatba: Platba = {
-      ...data,
-      id: Math.random().toString(36).substr(2, 9)
-    };
-    setPlatby([...platby, newPlatba]);
+    addPlatba(data);
     setShowForm(false);
     showNotification('Platba byla úspěšně přidána');
   };
@@ -40,10 +51,7 @@ export default function Platby() {
 
   const handleUpdate = (data: Omit<Platba, 'id'>) => {
     if (!editingPlatba) return;
-    const updatedPlatby = platby.map((p) =>
-      p.id === editingPlatba.id ? { ...data, id: editingPlatba.id } : p
-    );
-    setPlatby(updatedPlatby);
+    updatePlatba(editingPlatba.id, data);
     setShowForm(false);
     setEditingPlatba(undefined);
     showNotification('Platba byla úspěšně upravena');
@@ -55,23 +63,11 @@ export default function Platby() {
 
   const confirmDelete = () => {
     if (deleteDialog.platbaId) {
-      setPlatby(platby.filter((p) => p.id !== deleteDialog.platbaId));
+      deletePlatba(deleteDialog.platbaId);
       showNotification('Platba byla úspěšně smazána');
     }
     setDeleteDialog({ isOpen: false, platbaId: null });
   };
-
-  const filteredPlatby = platby.filter((platba) => {
-    const searchTerm = searchQuery.toLowerCase();
-    const najemnikJmeno = platba.najemnikId === '1' ? 'Jan Novák' : 'Marie Svobodová';
-    return najemnikJmeno.toLowerCase().includes(searchTerm);
-  });
-
-  // Výpočet stránkování
-  const totalPages = Math.ceil(filteredPlatby.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentPlatby = filteredPlatby.slice(startIndex, endIndex);
 
   return (
     <Layout>
@@ -83,14 +79,23 @@ export default function Platby() {
       )}
       
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Platby</h1>
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+          <div className="space-y-4 w-full sm:w-auto">
+            <h1 className="text-2xl font-bold text-gray-900">Platby</h1>
+            
+            <PaymentTypeToggle
+              selectedType={selectedType}
+              onTypeChange={setSelectedType}
+              stats={stats}
+            />
+          </div>
+          
           <button
             onClick={() => {
               setEditingPlatba(undefined);
               setShowForm(true);
             }}
-            className="btn btn-primary flex items-center gap-2"
+            className="btn btn-primary flex items-center gap-2 w-full sm:w-auto"
           >
             <Plus className="h-5 w-5" />
             Přidat platbu
@@ -113,22 +118,20 @@ export default function Platby() {
           </div>
         ) : (
           <>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-              <input
-                type="text"
-                placeholder="Vyhledat platbu podle nájemníka..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 input"
-              />
-            </div>
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Vyhledat platbu podle nájemníka..."
+              className="max-w-2xl"
+            />
+            
             <div className="bg-white rounded-lg shadow-md">
               <PlatbyTable
-                platby={currentPlatby}
+                platby={filteredPlatby}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
               />
+              
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}

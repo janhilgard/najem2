@@ -1,57 +1,52 @@
 import React, { useState } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import Layout from '../components/Layout';
 import JednotkyTable from '../components/JednotkyTable';
 import JednotkaForm from '../components/JednotkaForm';
+import SearchInput from '../components/common/SearchInput';
+import DeleteConfirmDialog from '../components/DeleteConfirmDialog';
+import Notification from '../components/Notification';
+import Pagination from '../components/Pagination';
+import { useNotificationStore } from '../stores/notificationStore';
+import { useJednotkyStore } from '../stores/jednotkyStore';
+import { useNajemniciStore } from '../stores/najemniciStore';
 import type { Jednotka } from '../types';
 
-// Sample data - would come from API/database in real app
-const initialJednotky: Jednotka[] = [
-  {
-    id: '1',
-    cisloJednotky: 'A123',
-    dispozice: '2+1',
-    plocha: 65,
-    ulice: 'Květná',
-    cisloPopisne: '123',
-    mesto: 'Praha',
-    psc: '12000'
-  },
-  {
-    id: '2',
-    cisloJednotky: 'B45',
-    dispozice: '1+kk',
-    plocha: 35,
-    ulice: 'Zahradní',
-    cisloPopisne: '45',
-    mesto: 'Praha',
-    psc: '12000'
-  },
-  {
-    id: '3',
-    cisloJednotky: 'C789',
-    dispozice: '3+1',
-    plocha: 85,
-    ulice: 'Polní',
-    cisloPopisne: '789',
-    mesto: 'Praha',
-    psc: '12000'
-  }
-];
-
 export default function Jednotky() {
-  const [jednotky, setJednotky] = useState<Jednotka[]>(initialJednotky);
+  const { jednotky, addJednotka, updateJednotka, deleteJednotka } = useJednotkyStore();
+  const { najemnici } = useNajemniciStore();
+  const { message: notification, showNotification, hideNotification } = useNotificationStore();
+  
   const [showForm, setShowForm] = useState(false);
   const [editingJednotka, setEditingJednotka] = useState<Jednotka | undefined>();
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; jednotkaId: string | null }>({
+    isOpen: false,
+    jednotkaId: null
+  });
+
+  // Filter units based on search query
+  const filteredJednotky = jednotky.filter((jednotka) => {
+    return searchQuery.toLowerCase().split(' ').every(term =>
+      `${jednotka.cisloJednotky} ${jednotka.dispozice} ${jednotka.ulice} ${jednotka.mesto}`
+        .toLowerCase()
+        .includes(term)
+    );
+  });
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredJednotky.length / itemsPerPage);
+  const paginatedJednotky = filteredJednotky.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const handleAdd = (data: Omit<Jednotka, 'id'>) => {
-    const newJednotka: Jednotka = {
-      ...data,
-      id: Math.random().toString(36).substr(2, 9)
-    };
-    setJednotky([...jednotky, newJednotka]);
+    addJednotka(data);
     setShowForm(false);
+    showNotification('Jednotka byla úspěšně přidána');
   };
 
   const handleEdit = (jednotka: Jednotka) => {
@@ -61,37 +56,48 @@ export default function Jednotky() {
 
   const handleUpdate = (data: Omit<Jednotka, 'id'>) => {
     if (!editingJednotka) return;
-    const updatedJednotky = jednotky.map((j) =>
-      j.id === editingJednotka.id ? { ...data, id: editingJednotka.id } : j
-    );
-    setJednotky(updatedJednotky);
+    updateJednotka(editingJednotka.id, data);
     setShowForm(false);
     setEditingJednotka(undefined);
+    showNotification('Jednotka byla úspěšně upravena');
   };
 
   const handleDelete = (id: string) => {
-    if (window.confirm('Opravdu chcete smazat tuto jednotku?')) {
-      setJednotky(jednotky.filter((j) => j.id !== id));
-    }
+    setDeleteDialog({ isOpen: true, jednotkaId: id });
   };
 
-  const filteredJednotky = jednotky.filter((jednotka) =>
-    `${jednotka.cisloJednotky} ${jednotka.ulice} ${jednotka.mesto}`
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase())
-  );
+  const confirmDelete = () => {
+    if (deleteDialog.jednotkaId) {
+      deleteJednotka(deleteDialog.jednotkaId);
+      showNotification('Jednotka byla úspěšně smazána');
+    }
+    setDeleteDialog({ isOpen: false, jednotkaId: null });
+  };
 
   return (
     <Layout>
+      {notification && (
+        <Notification
+          message={notification}
+          onClose={hideNotification}
+        />
+      )}
+      
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Bytové jednotky</h1>
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Bytové jednotky</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Celkem jednotek: {jednotky.length}
+            </p>
+          </div>
+          
           <button
             onClick={() => {
               setEditingJednotka(undefined);
               setShowForm(true);
             }}
-            className="btn btn-primary flex items-center gap-2"
+            className="btn btn-primary flex items-center gap-2 w-full sm:w-auto"
           >
             <Plus className="h-5 w-5" />
             Přidat jednotku
@@ -114,23 +120,39 @@ export default function Jednotky() {
           </div>
         ) : (
           <>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-              <input
-                type="text"
-                placeholder="Vyhledat jednotku..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 input"
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Vyhledat jednotku..."
+              className="max-w-2xl"
+            />
+            
+            <div className="bg-white rounded-lg shadow-md">
+              <JednotkyTable
+                jednotky={paginatedJednotky}
+                najemnici={najemnici}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+              
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                itemsPerPage={itemsPerPage}
+                onItemsPerPageChange={setItemsPerPage}
               />
             </div>
-            <JednotkyTable
-              jednotky={filteredJednotky}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
           </>
         )}
+
+        <DeleteConfirmDialog
+          isOpen={deleteDialog.isOpen}
+          onClose={() => setDeleteDialog({ isOpen: false, jednotkaId: null })}
+          onConfirm={confirmDelete}
+          title="Smazat jednotku"
+          message="Opravdu chcete smazat tuto jednotku? Tuto akci nelze vrátit zpět."
+        />
       </div>
     </Layout>
   );

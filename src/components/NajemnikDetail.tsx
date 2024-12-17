@@ -3,39 +3,94 @@ import { format } from 'date-fns';
 import { cs } from 'date-fns/locale';
 import { 
   FileText, 
-  Image, 
-  Upload, 
-  Download, 
-  Trash2, 
   X,
-  Plus
+  Plus,
+  Download,
+  Trash2
 } from 'lucide-react';
 import type { Najemnik, Dokument, Fotografie } from '../types';
 import SaldoPrehled from './SaldoPrehled';
+import PhotoGallery from './photos/PhotoGallery';
+import DocumentDropzone from './documents/DocumentDropzone';
+import DeleteConfirmDialog from './DeleteConfirmDialog';
 
 interface NajemnikDetailProps {
   najemnik: Najemnik;
   onClose: () => void;
+  onUpdate: (najemnik: Najemnik) => void;
 }
 
-export default function NajemnikDetail({ najemnik, onClose }: NajemnikDetailProps) {
+export default function NajemnikDetail({ najemnik, onClose, onUpdate }: NajemnikDetailProps) {
   const [activeTab, setActiveTab] = useState<'saldo' | 'dokumenty' | 'fotografie'>('saldo');
-  const [selectedImage, setSelectedImage] = useState<Fotografie | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; dokumentId: string | null }>({
+    isOpen: false,
+    dokumentId: null
+  });
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files && files.length > 0) {
-      // Here you would typically upload the file to your server
-      console.log('Uploading files:', files);
-    }
+  const handlePhotoAdd = (photoData: Omit<Fotografie, 'id'>) => {
+    const newPhoto: Fotografie = {
+      ...photoData,
+      id: Math.random().toString(36).substr(2, 9)
+    };
+    
+    const updatedNajemnik: Najemnik = {
+      ...najemnik,
+      fotografie: [...(najemnik.fotografie || []), newPhoto]
+    };
+    
+    onUpdate(updatedNajemnik);
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files && files.length > 0) {
-      // Here you would typically upload the images to your server
-      console.log('Uploading images:', files);
+  const handlePhotoDelete = (photoId: string) => {
+    const updatedNajemnik: Najemnik = {
+      ...najemnik,
+      fotografie: najemnik.fotografie?.filter(f => f.id !== photoId) || []
+    };
+    
+    onUpdate(updatedNajemnik);
+  };
+
+  const handleDocumentsAdded = (files: File[]) => {
+    const newDocuments: Dokument[] = files.map(file => ({
+      id: Math.random().toString(36).substr(2, 9),
+      nazev: file.name,
+      typ: file.type,
+      velikost: file.size,
+      datum: new Date().toISOString(),
+      url: URL.createObjectURL(file)
+    }));
+
+    const updatedNajemnik: Najemnik = {
+      ...najemnik,
+      dokumenty: [...(najemnik.dokumenty || []), ...newDocuments]
+    };
+
+    onUpdate(updatedNajemnik);
+  };
+
+  const handleDocumentDelete = (dokumentId: string) => {
+    setDeleteDialog({ isOpen: true, dokumentId });
+  };
+
+  const confirmDocumentDelete = () => {
+    if (deleteDialog.dokumentId) {
+      const updatedNajemnik: Najemnik = {
+        ...najemnik,
+        dokumenty: najemnik.dokumenty?.filter(d => d.id !== deleteDialog.dokumentId) || []
+      };
+      
+      onUpdate(updatedNajemnik);
     }
+    setDeleteDialog({ isOpen: false, dokumentId: null });
+  };
+
+  const handleDocumentDownload = (dokument: Dokument) => {
+    const link = document.createElement('a');
+    link.href = dokument.url;
+    link.download = dokument.nazev;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -96,9 +151,9 @@ export default function NajemnikDetail({ najemnik, onClose }: NajemnikDetailProp
               <div className="space-y-4">
                 <SaldoPrehled
                   najemnikId={najemnik.id}
-                  platby={[]} // Pass actual platby data
-                  predpisy={[]} // Pass actual predpisy data
-                  onPlatbaAdded={() => {}} // Pass actual handler
+                  platby={[]}
+                  predpisy={[]}
+                  onPlatbaAdded={() => {}}
                 />
               </div>
             )}
@@ -107,16 +162,31 @@ export default function NajemnikDetail({ najemnik, onClose }: NajemnikDetailProp
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-medium text-gray-900">Dokumenty</h3>
-                  <label className="btn btn-primary flex items-center gap-2 cursor-pointer">
-                    <Upload className="h-5 w-5" />
+                </div>
+
+                <div className="flex gap-4">
+                  {/* Upload button */}
+                  <label className="btn btn-primary flex items-center gap-2 cursor-pointer whitespace-nowrap">
+                    <Plus className="h-5 w-5" />
                     <span>Nahrát dokument</span>
                     <input
                       type="file"
                       className="hidden"
-                      onChange={handleFileUpload}
                       multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        if (files.length > 0) {
+                          handleDocumentsAdded(files);
+                        }
+                        e.target.value = '';
+                      }}
                     />
                   </label>
+
+                  {/* Dropzone */}
+                  <div className="flex-1">
+                    <DocumentDropzone onDocumentsAdded={handleDocumentsAdded} />
+                  </div>
                 </div>
 
                 <div className="bg-white rounded-lg border divide-y">
@@ -132,10 +202,18 @@ export default function NajemnikDetail({ najemnik, onClose }: NajemnikDetailProp
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <button className="text-blue-600 hover:text-blue-700">
+                        <button
+                          onClick={() => handleDocumentDownload(dokument)}
+                          className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
+                          title="Stáhnout dokument"
+                        >
                           <Download className="h-5 w-5" />
                         </button>
-                        <button className="text-red-600 hover:text-red-700">
+                        <button
+                          onClick={() => handleDocumentDelete(dokument.id)}
+                          className="p-1 text-gray-500 hover:text-red-600 transition-colors"
+                          title="Smazat dokument"
+                        >
                           <Trash2 className="h-5 w-5" />
                         </button>
                       </div>
@@ -151,78 +229,23 @@ export default function NajemnikDetail({ najemnik, onClose }: NajemnikDetailProp
             )}
 
             {activeTab === 'fotografie' && (
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium text-gray-900">Fotografie</h3>
-                  <label className="btn btn-primary flex items-center gap-2 cursor-pointer">
-                    <Plus className="h-5 w-5" />
-                    <span>Přidat fotografie</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleImageUpload}
-                      multiple
-                    />
-                  </label>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {najemnik.fotografie?.map((foto) => (
-                    <div
-                      key={foto.id}
-                      className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100"
-                      onClick={() => setSelectedImage(foto)}
-                    >
-                      <img
-                        src={foto.thumbnail}
-                        alt={foto.nazev}
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity flex items-center justify-center">
-                        <button className="text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Image className="h-8 w-8" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {(!najemnik.fotografie || najemnik.fotografie.length === 0) && (
-                    <div className="col-span-full p-8 text-center text-gray-500 border-2 border-dashed rounded-lg">
-                      Zatím zde nejsou žádné fotografie
-                    </div>
-                  )}
-                </div>
-              </div>
+              <PhotoGallery
+                photos={najemnik.fotografie || []}
+                onPhotoAdd={handlePhotoAdd}
+                onPhotoDelete={handlePhotoDelete}
+              />
             )}
           </div>
         </div>
       </div>
 
-      {/* Image Preview Modal */}
-      {selectedImage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black bg-opacity-90" onClick={() => setSelectedImage(null)} />
-          <div className="relative max-w-4xl w-full">
-            <button
-              onClick={() => setSelectedImage(null)}
-              className="absolute top-4 right-4 text-white hover:text-gray-300"
-            >
-              <X className="h-6 w-6" />
-            </button>
-            <img
-              src={selectedImage.url}
-              alt={selectedImage.nazev}
-              className="w-full h-auto rounded-lg"
-            />
-            <div className="absolute bottom-4 left-4 text-white">
-              <p className="text-sm font-medium">{selectedImage.nazev}</p>
-              <p className="text-xs opacity-75">
-                {format(new Date(selectedImage.datum), 'PPP', { locale: cs })}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteConfirmDialog
+        isOpen={deleteDialog.isOpen}
+        onClose={() => setDeleteDialog({ isOpen: false, dokumentId: null })}
+        onConfirm={confirmDocumentDelete}
+        title="Smazat dokument"
+        message="Opravdu chcete smazat tento dokument? Tuto akci nelze vrátit zpět."
+      />
     </div>
   );
 }

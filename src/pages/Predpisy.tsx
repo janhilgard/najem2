@@ -1,32 +1,44 @@
 import React, { useState } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import Layout from '../components/Layout';
 import PredpisyTable from '../components/PredpisyTable';
 import PredpisForm from '../components/PredpisForm';
 import DeleteConfirmDialog from '../components/DeleteConfirmDialog';
 import Notification from '../components/Notification';
-import { useNotification } from '../hooks/useNotification';
-import { initialPredpisy } from '../data/initialData';
-import type { Predpis } from '../types';
+import SearchInput from '../components/common/SearchInput';
+import PredpisTypeToggle from '../components/predpisy/PredpisTypeToggle';
+import Pagination from '../components/Pagination';
+import { useNotificationStore } from '../stores/notificationStore';
+import { usePredpisyStore } from '../stores/predpisyStore';
+import { usePredpisyFilter } from '../hooks/usePredpisyFilter';
 
 export default function Predpisy() {
-  const [predpisy, setPredpisy] = useState<Predpis[]>(initialPredpisy);
+  const { predpisy, addPredpis, updatePredpis, deletePredpis } = usePredpisyStore();
+  const { message: notification, showNotification, hideNotification } = useNotificationStore();
+  
   const [showForm, setShowForm] = useState(false);
   const [editingPredpis, setEditingPredpis] = useState<Predpis | undefined>();
-  const [showUkoncene, setShowUkoncene] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; predpisId: string | null }>({
     isOpen: false,
     predpisId: null
   });
-  const { notification, showNotification, hideNotification } = useNotification();
+
+  const {
+    searchQuery,
+    setSearchQuery,
+    selectedType,
+    setSelectedType,
+    currentPage,
+    setCurrentPage,
+    itemsPerPage,
+    setItemsPerPage,
+    filteredPredpisy,
+    totalPages,
+    stats
+  } = usePredpisyFilter(predpisy);
 
   const handleAdd = (data: Omit<Predpis, 'id'>) => {
-    const newPredpis: Predpis = {
-      ...data,
-      id: Math.random().toString(36).substr(2, 9)
-    };
-    setPredpisy([...predpisy, newPredpis]);
+    addPredpis(data);
     setShowForm(false);
     showNotification('Předpis byl úspěšně přidán');
   };
@@ -38,10 +50,7 @@ export default function Predpisy() {
 
   const handleUpdate = (data: Omit<Predpis, 'id'>) => {
     if (!editingPredpis) return;
-    const updatedPredpisy = predpisy.map((p) =>
-      p.id === editingPredpis.id ? { ...data, id: editingPredpis.id } : p
-    );
-    setPredpisy(updatedPredpisy);
+    updatePredpis(editingPredpis.id, data);
     setShowForm(false);
     setEditingPredpis(undefined);
     showNotification('Předpis byl úspěšně upraven');
@@ -53,27 +62,11 @@ export default function Predpisy() {
 
   const confirmDelete = () => {
     if (deleteDialog.predpisId) {
-      setPredpisy(predpisy.filter((p) => p.id !== deleteDialog.predpisId));
+      deletePredpis(deleteDialog.predpisId);
       showNotification('Předpis byl úspěšně smazán');
     }
     setDeleteDialog({ isOpen: false, predpisId: null });
   };
-
-  // Filter predpisy based on search query and showUkoncene state
-  const filteredPredpisy = predpisy.filter((predpis) => {
-    const isUkonceny = new Date(predpis.platnostDo) < new Date();
-    const matchesSearch = searchQuery.toLowerCase().split(' ').every(term =>
-      `${predpis.najemnikId} ${predpis.mesicniNajem} ${predpis.zalohaSluzby}`
-        .toLowerCase()
-        .includes(term)
-    );
-
-    if (!showUkoncene && isUkonceny) {
-      return false;
-    }
-
-    return matchesSearch;
-  });
 
   return (
     <Layout>
@@ -85,29 +78,23 @@ export default function Predpisy() {
       )}
       
       <div className="space-y-6">
-        <div className="flex justify-between items-start">
-          <div className="space-y-2">
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+          <div className="space-y-4 w-full sm:w-auto">
             <h1 className="text-2xl font-bold text-gray-900">Předpisy plateb</h1>
-            <div className="flex items-center">
-              <label className="inline-flex items-center">
-                <input
-                  type="checkbox"
-                  checked={showUkoncene}
-                  onChange={(e) => setShowUkoncene(e.target.checked)}
-                  className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-                />
-                <span className="ml-2 text-sm text-gray-600">
-                  Zobrazit ukončené předpisy
-                </span>
-              </label>
-            </div>
+            
+            <PredpisTypeToggle
+              selectedType={selectedType}
+              onTypeChange={setSelectedType}
+              stats={stats}
+            />
           </div>
+          
           <button
             onClick={() => {
               setEditingPredpis(undefined);
               setShowForm(true);
             }}
-            className="btn btn-primary flex items-center gap-2"
+            className="btn btn-primary flex items-center gap-2 w-full sm:w-auto"
           >
             <Plus className="h-5 w-5" />
             Přidat předpis
@@ -130,21 +117,28 @@ export default function Predpisy() {
           </div>
         ) : (
           <>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-              <input
-                type="text"
-                placeholder="Vyhledat předpis..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 input"
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Vyhledat předpis..."
+              className="max-w-2xl"
+            />
+            
+            <div className="bg-white rounded-lg shadow-md">
+              <PredpisyTable
+                predpisy={filteredPredpisy}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+              
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                itemsPerPage={itemsPerPage}
+                onItemsPerPageChange={setItemsPerPage}
               />
             </div>
-            <PredpisyTable
-              predpisy={filteredPredpisy}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
           </>
         )}
 

@@ -21,7 +21,10 @@ export default function DeleteConfirmDialog({
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black bg-opacity-30 transition-opacity" />
+      <div 
+        className="fixed inset-0 bg-black bg-opacity-30 transition-opacity" 
+        onClick={onClose}
+      />
 
       {/* Dialog */}
       <div className="flex min-h-screen items-center justify-center p-4">
@@ -34,7 +37,7 @@ export default function DeleteConfirmDialog({
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-500"
+              className="text-gray-400 hover:text-gray-500 transition-colors"
             >
               <X className="h-5 w-5" />
             </button>

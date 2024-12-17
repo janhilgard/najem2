@@ -1,15 +1,15 @@
 import React from 'react';
 import { WalletCards, TrendingUp, TrendingDown } from 'lucide-react';
-import type { Najemnik, Platba, Predpis } from '../types';
 import { calculateTenantBalance } from '../utils/finance';
+import { useNajemniciStore } from '../stores/najemniciStore';
+import { usePlatbyStore } from '../stores/platbyStore';
+import { usePredpisyStore } from '../stores/predpisyStore';
 
-interface NajemniciSaldoPrehledProps {
-  najemnici: Najemnik[];
-  platby: Platba[];
-  predpisy: Predpis[];
-}
+export default function NajemniciSaldoPrehled() {
+  const { najemnici } = useNajemniciStore();
+  const { platby } = usePlatbyStore();
+  const { predpisy } = usePredpisyStore();
 
-export default function NajemniciSaldoPrehled({ najemnici, platby, predpisy }: NajemniciSaldoPrehledProps) {
   const aktivniNajemnici = najemnici.filter(n => n.aktivni);
   
   // Calculate summary statistics

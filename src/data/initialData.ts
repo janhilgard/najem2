@@ -1,4 +1,37 @@
-import type { Najemnik, Platba, Predpis } from '../types';
+import type { Najemnik, Platba, Predpis, Jednotka } from '../types';
+
+export const initialJednotky: Jednotka[] = [
+  {
+    id: '1',
+    cisloJednotky: 'A123',
+    dispozice: '2+1',
+    plocha: 65,
+    ulice: 'Květná',
+    cisloPopisne: '123',
+    mesto: 'Praha',
+    psc: '12000'
+  },
+  {
+    id: '2',
+    cisloJednotky: 'B45',
+    dispozice: '1+kk',
+    plocha: 35,
+    ulice: 'Zahradní',
+    cisloPopisne: '45',
+    mesto: 'Praha',
+    psc: '12000'
+  },
+  {
+    id: '3',
+    cisloJednotky: 'C789',
+    dispozice: '3+1',
+    plocha: 85,
+    ulice: 'Polní',
+    cisloPopisne: '789',
+    mesto: 'Praha',
+    psc: '12000'
+  }
+];
 
 export const initialNajemnici: Najemnik[] = [
   {
@@ -35,7 +68,7 @@ export const initialPlatby: Platba[] = [
     najemnikId: '1',
     predpisId: '1',
     datum: '2024-03-05',
-    castkaNajem: 0, // No rent payment yet
+    castkaNajem: 0,
     castkaPoplatky: 3500,
     castkaKauce: 25000,
     celkovaCastka: 28500,
@@ -61,11 +94,11 @@ export const initialPredpisy: Predpis[] = [
   {
     id: '1',
     najemnikId: '1',
-    mesicniNajem: 12500, // Monthly rent that hasn't been paid
+    mesicniNajem: 12500,
     zalohaSluzby: 3500,
     platnostOd: '2024-03-01',
     platnostDo: '2024-12-31',
-    uhrazeno: 3500 // Only utilities have been paid
+    uhrazeno: 3500
   },
   {
     id: '2',

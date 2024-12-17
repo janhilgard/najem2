@@ -2,14 +2,13 @@ import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { cs } from 'date-fns/locale';
 import { ArrowUpCircle, ArrowDownCircle, Plus } from 'lucide-react';
-import type { Platba, Predpis } from '../types';
 import PlatbaForm from './PlatbaForm';
+import { usePlatbyStore } from '../stores/platbyStore';
+import { usePredpisyStore } from '../stores/predpisyStore';
+import type { Platba } from '../types';
 
 interface SaldoPrehledProps {
   najemnikId: string;
-  platby: Platba[];
-  predpisy: Predpis[];
-  onPlatbaAdded?: (platba: Omit<Platba, 'id'>) => void;
 }
 
 type PohybSalda = {
@@ -20,8 +19,10 @@ type PohybSalda = {
   popis: string;
 };
 
-export default function SaldoPrehled({ najemnikId, platby, predpisy, onPlatbaAdded }: SaldoPrehledProps) {
+export default function SaldoPrehled({ najemnikId }: SaldoPrehledProps) {
   const [showPlatbaForm, setShowPlatbaForm] = useState(false);
+  const { platby, addPlatba } = usePlatbyStore();
+  const { predpisy } = usePredpisyStore();
 
   // Převedeme platby a předpisy na jednotný formát pohybů
   const pohyby: PohybSalda[] = [
@@ -54,7 +55,7 @@ export default function SaldoPrehled({ najemnikId, platby, predpisy, onPlatbaAdd
   });
 
   const handlePlatbaSubmit = (data: Omit<Platba, 'id'>) => {
-    onPlatbaAdded?.(data);
+    addPlatba(data);
     setShowPlatbaForm(false);
   };
 
