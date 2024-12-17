@@ -11,10 +11,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside className="w-64 bg-white shadow-lg flex flex-col">
         <div className="p-4 border-b">
-          <div className="flex items-center gap-2">
+          <Link 
+            to="/" 
+            className="flex items-center gap-2 text-gray-800 hover:text-blue-600 transition-colors"
+          >
             <Building2 className="h-6 w-6 text-blue-600" />
-            <h1 className="text-xl font-bold text-gray-800">Správa pronájmů</h1>
-          </div>
+            <h1 className="text-xl font-bold">Správa pronájmů</h1>
+          </Link>
         </div>
         <nav className="flex-1 p-4">
           <ul className="space-y-2">
